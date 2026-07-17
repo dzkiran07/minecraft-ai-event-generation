@@ -216,3 +216,27 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+paper.jar
+logs/
+world/
+world_nether/
+world_the_end/
+cache/
+libraries/
+versions/
+plugins/
+server.properties
+.console_history
+bukkit.yml
+commands.yml
+config/
+help.yml
+spigot.yml
+permissions.yml
+ops.json
+banned-ips.json
+banned-players.json
+whitelist.json
+usercache.json
+version_history.json
+eula.txt
