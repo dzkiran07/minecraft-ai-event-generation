@@ -55,6 +55,14 @@ def send_command(cmd):
         response = mcr.command(cmd)
         return response
 
+def show_popup(name, title_text, subtitle_text, color="white", sound="entity.experience_orb.pickup"):
+    title_cmd = f'title {name} title {{"text":"{title_text}","color":"{color}","bold":true}}'
+    subtitle_cmd = f'title {name} subtitle {{"text":"{subtitle_text}","color":"gray"}}'
+    sound_cmd = f'playsound minecraft:{sound} master {name}'
+    send_command(title_cmd)
+    send_command(subtitle_cmd)
+    send_command(sound_cmd)
+
 def decide_with_rules(score):
     if score < LOW_THRESHOLD:
         return "reward"
@@ -92,16 +100,19 @@ def maybe_trigger_event(name, score):
 
     if p["death_count"] >= DEATH_OVERRIDE_THRESHOLD and decision == "challenge":
         print(f"   [SAFETY] easing off {name} after {p['death_count']} deaths -> reward instead")
+        show_popup(name, "Taking it easy", "Here's something to help you recover", color="aqua", sound="entity.player.levelup")
         decision = "reward"
 
     log_to_csv(name, score, decision)
 
     if decision == "reward":
         result = send_command(f"give {name} diamond 3")
+        show_popup(name, "Reward!", "You received 3 diamonds", color="green", sound="entity.experience_orb.pickup")
         print(f"   [REWARD] {name} -> {result}")
         p["last_event_time"] = now
     elif decision == "challenge":
         result = send_command(f"execute at {name} run summon minecraft:zombie ~2 ~ ~2")
+        show_popup(name, "Challenge!", "A threat has appeared nearby", color="red", sound="entity.wither.spawn")
         print(f"   [CHALLENGE] {name} -> {result}")
         p["last_event_time"] = now
 
