@@ -4,3 +4,10 @@ timestamp,player,action_count,idle_time,session_length,score,engine_mode,decisio
 1784292879.9,Jujudh4uu,1,0.1,0.1,2.0,ml,reward
 1784293264.1,Jujudh4uu,2,0.0,384.3,4.0,ml,none
 1784293307.1,Jujudh4uu,3,0.0,427.3,6.0,ml,none
+1784293517.2,Jujudh4uu,4,0.0,637.4,8.0,ml,none
+1784293518.2,Jujudh4uu,5,0.0,638.4,10.0,ml,challenge
+1784293549.3,Jujudh4uu,9,0.0,669.4,18.0,ml,challenge
+1784294686.8,Jujudh4uu,12,0.0,1806.9,24.0,ml,challenge
+1784294807.8,Jujudh4uu,13,0.0,1928.0,26.0,ml,challenge
+1784294980.0,Jujudh4uu,1,0.0,0.0,2.0,ml,reward
+1784295018.0,Jujudh4uu,2,0.0,38.0,4.0,ml,reward
