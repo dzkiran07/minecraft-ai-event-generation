@@ -1,5 +1,5 @@
 from mcrcon import MCRcon
 
 with MCRcon("localhost", "test123", port=25575) as mcr:
-       response = mcr.command("weather thunder")
+       response = mcr.command("op Jujudh4uu")
        print(response)
