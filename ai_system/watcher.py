@@ -16,6 +16,7 @@ players = {}
 LOW_THRESHOLD = 3
 HIGH_THRESHOLD = 15
 COOLDOWN_SECONDS = 30
+DEATH_OVERRIDE_THRESHOLD = 3
 
 # Switch between "rules" and "ml" to compare engines
 ENGINE_MODE = "ml"
@@ -85,6 +86,10 @@ def maybe_trigger_event(name, score):
         decision = decide_with_rules(score)
     else:
         decision = decide_with_ml(name)
+
+    if p["death_count"] >= DEATH_OVERRIDE_THRESHOLD and decision == "challenge":
+        print(f"[OVERRIDE] {name} has {p['death_count']} deaths -> suppressing challenge, giving reward instead")
+        decision = "reward"
 
     log_to_csv(name, score, decision)
 
