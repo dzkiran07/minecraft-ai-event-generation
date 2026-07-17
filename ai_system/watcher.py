@@ -1,6 +1,8 @@
 import time
 import re
 import pickle
+import csv
+import os
 from mcrcon import MCRcon
 
 log_path = "../logs/latest.log"
@@ -21,7 +23,14 @@ ENGINE_MODE = "ml"
 with open("event_model.pkl", "rb") as f:
     model = pickle.load(f)
 
-def touch_player(name):
+session_log_path = "session_log.csv"
+
+if not os.path.exists(session_log_path):
+    with open(session_log_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["timestamp", "player", "action_count", "idle_time", "session_length", "score", "engine_mode", "decision"])
+
+def touch_player(name): 
     now = time.time()
     if name not in players:
         players[name] = {"session_start": now, "last_active": now, "action_count": 0, "last_event_time": 0}
@@ -55,6 +64,15 @@ def decide_with_ml(name):
     features = [[p["action_count"], idle_time, session_length]]
     return model.predict(features)[0]
 
+def log_to_csv(name, score, decision):
+    p = players[name]
+    now = time.time()
+    idle_time = round(now - p["last_active"], 1)
+    session_length = round(now - p["session_start"], 1)
+    with open(session_log_path, "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([round(now, 1), name, p["action_count"], idle_time, session_length, score, ENGINE_MODE, decision])
+
 def maybe_trigger_event(name, score):
     p = players[name]
     now = time.time()
@@ -65,6 +83,8 @@ def maybe_trigger_event(name, score):
         decision = decide_with_rules(score)
     else:
         decision = decide_with_ml(name)
+
+    log_to_csv(name, score, decision)
 
     if decision == "reward":
         print(f"[{ENGINE_MODE.upper()} DECISION] {name} -> reward")
