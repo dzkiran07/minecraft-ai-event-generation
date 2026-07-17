@@ -30,12 +30,14 @@ if not os.path.exists(session_log_path):
         writer = csv.writer(f)
         writer.writerow(["timestamp", "player", "action_count", "idle_time", "session_length", "score", "engine_mode", "decision"])
 
-def touch_player(name): 
+def touch_player(name, event_type="action"):
     now = time.time()
     if name not in players:
-        players[name] = {"session_start": now, "last_active": now, "action_count": 0, "last_event_time": 0}
+        players[name] = {"session_start": now, "last_active": now, "action_count": 0, "last_event_time": 0, "death_count": 0}
     players[name]["last_active"] = now
     players[name]["action_count"] += 1
+    if event_type == "death":
+        players[name]["death_count"] += 1
 
 def compute_score(name):
     p = players[name]
@@ -108,15 +110,17 @@ with open(log_path, "r", encoding="utf-8") as f:
         death_match = death_pattern.search(line)
 
         name = None
+        event_type = "action"
         if join_match:
             name = join_match.group(1)
         elif chat_match:
             name = chat_match.group(1)
         elif death_match:
             name = death_match.group(1)
+            event_type = "death"
 
         if name:
-            touch_player(name)
+            touch_player(name, event_type)
             score, idle = compute_score(name)
-            print(f"{name} -> score: {score}  idle: {idle}s")
+            print(f"{name} -> score: {score}  idle: {idle}s  deaths: {players[name]['death_count']}")
             maybe_trigger_event(name, score)
