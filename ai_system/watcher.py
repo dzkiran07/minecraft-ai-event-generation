@@ -8,10 +8,10 @@ from mcrcon import MCRcon
 log_path = "../logs/latest.log"
 
 join_pattern = re.compile(r"(\w+) joined the game")
+leave_pattern = re.compile(r"(\w+) left the game")
 chat_pattern = re.compile(r"<(\w+)> (.+)")
 death_pattern = re.compile(r"(\w+) (was slain by|was blown up by|drowned|fell)")
-advancement_pattern = re.compile(r"(\w+) has made the advancement \[(.+)\]")
-
+advancement_pattern = re.compile(r"(\w+) has (?:made the advancement|reached the goal|completed the challenge) \[(.+)\]")
 players = {}
 
 LOW_THRESHOLD = 3
@@ -87,6 +87,15 @@ def log_to_csv(name, score, decision):
         writer = csv.writer(f)
         writer.writerow([round(now, 1), name, p["action_count"], idle_time, session_length, score, ENGINE_MODE, decision])
 
+def log_session_end(name):
+    p = players[name]
+    now = time.time()
+    session_length = round(now - p["session_start"], 1)
+    with open(session_log_path, "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([round(now, 1), name, p["action_count"], 0.0, session_length, "", ENGINE_MODE, "session_end"])
+    print(f"{name:<12} left -> session_length: {session_length}s logged")
+
 def maybe_trigger_event(name, score):
     p = players[name]
     now = time.time()
@@ -127,9 +136,16 @@ with open(log_path, "r", encoding="utf-8") as f:
             continue
 
         join_match = join_pattern.search(line)
+        leave_match = leave_pattern.search(line)
         chat_match = chat_pattern.search(line)
         death_match = death_pattern.search(line)
         advancement_match = advancement_pattern.search(line)
+
+        if leave_match:
+            leave_name = leave_match.group(1)
+            if leave_name in players:
+                log_session_end(leave_name)
+                del players[leave_name]
 
         name = None
         event_type = "action"
