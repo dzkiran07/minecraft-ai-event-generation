@@ -10,10 +10,12 @@ for _ in range(500):
 
        score = (action_count * 2) - (idle_time * 0.1)
 
-       if score < 3:
+       if idle_time > 60:
            label = "reward"
-       elif score > 15:
+       elif action_count >= 8 and idle_time < 15 and session_length > 60:
            label = "challenge"
+       elif action_count >= 5 and idle_time < 30:
+           label = "challenge" if session_length > 120 else "none"
        else:
            label = "none"
 
