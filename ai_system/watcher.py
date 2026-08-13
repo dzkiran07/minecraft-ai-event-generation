@@ -16,10 +16,12 @@ players = {}
 
 LOW_THRESHOLD = 3
 HIGH_THRESHOLD = 15
+CHALLENGE_HARD_THRESHOLD = 25
 COOLDOWN_SECONDS = 30
-DEATH_OVERRIDE_THRESHOLD = 3
+DEATH_MERCY_THRESHOLD = 3
+ADVANCEMENT_TIER_THRESHOLD = 3
 
-# Switch between "rules" and "ml" to compare engines
+# Switch between "static" (log only, no events), "rules", and "ml" to compare engines
 ENGINE_MODE = "ml"
 
 with open("event_model.pkl", "rb") as f:
@@ -63,11 +65,18 @@ def show_popup(name, title_text, subtitle_text, color="white", sound="entity.exp
     send_command(subtitle_cmd)
     send_command(sound_cmd)
 
-def decide_with_rules(score):
-    if score < LOW_THRESHOLD:
+def decide_with_rules(name, score):
+    p = players[name]
+    if p["death_count"] >= DEATH_MERCY_THRESHOLD:
+        return "mercy"
+    elif p["advancement_count"] >= ADVANCEMENT_TIER_THRESHOLD:
+        return "reward_tiered"
+    elif score < LOW_THRESHOLD:
         return "reward"
+    elif score > CHALLENGE_HARD_THRESHOLD:
+        return "challenge_hard"
     elif score > HIGH_THRESHOLD:
-        return "challenge"
+        return "challenge_mild"
     return "none"
 
 def decide_with_ml(name):
@@ -75,7 +84,7 @@ def decide_with_ml(name):
     now = time.time()
     idle_time = now - p["last_active"]
     session_length = now - p["session_start"]
-    features = [[p["action_count"], idle_time, session_length]]
+    features = [[p["action_count"], idle_time, session_length, p["death_count"], p["advancement_count"]]]
     return model.predict(features)[0]
 
 def log_to_csv(name, score, decision):
@@ -97,20 +106,18 @@ def log_session_end(name):
     print(f"{name:<12} left -> session_length: {session_length}s logged")
 
 def maybe_trigger_event(name, score):
+    if ENGINE_MODE == "static":
+        return
+
     p = players[name]
     now = time.time()
     if now - p["last_event_time"] < COOLDOWN_SECONDS:
         return
 
     if ENGINE_MODE == "rules":
-        decision = decide_with_rules(score)
+        decision = decide_with_rules(name, score)
     else:
         decision = decide_with_ml(name)
-
-    if p["death_count"] >= DEATH_OVERRIDE_THRESHOLD and decision == "challenge":
-        print(f"   [SAFETY] easing off {name} after {p['death_count']} deaths -> reward instead")
-        show_popup(name, "Taking it easy", "Here's something to help you recover", color="aqua", sound="entity.player.levelup")
-        decision = "reward"
 
     log_to_csv(name, score, decision)
 
@@ -119,11 +126,36 @@ def maybe_trigger_event(name, score):
         show_popup(name, "Reward!", "You received 3 diamonds", color="green", sound="entity.experience_orb.pickup")
         print(f"   [REWARD] {name} -> {result}")
         p["last_event_time"] = now
-    elif decision == "challenge":
+    elif decision == "reward_tiered":
+        result = send_command(f"give {name} golden_apple 1")
+        show_popup(name, "Big Reward!", "You received a golden apple", color="gold", sound="entity.player.levelup")
+        print(f"   [REWARD_TIERED] {name} -> {result}")
+        p["last_event_time"] = now
+    elif decision == "challenge_mild":
         result = send_command(f"execute at {name} run summon minecraft:zombie ~2 ~ ~2")
         show_popup(name, "Challenge!", "A threat has appeared nearby", color="red", sound="entity.wither.spawn")
-        print(f"   [CHALLENGE] {name} -> {result}")
+        print(f"   [CHALLENGE_MILD] {name} -> {result}")
         p["last_event_time"] = now
+    elif decision == "challenge_hard":
+        result = send_command(f"execute at {name} run summon minecraft:pillager ~2 ~ ~2")
+        send_command(f"execute at {name} run summon minecraft:vindicator ~-2 ~ ~-2")
+        show_popup(name, "Challenge!", "A serious threat has appeared", color="dark_red", sound="entity.ravager.roar")
+        print(f"   [CHALLENGE_HARD] {name} -> {result}")
+        p["last_event_time"] = now
+    elif decision == "mercy":
+        send_command(f"effect give {name} minecraft:regeneration 15 1")
+        send_command(f"effect give {name} minecraft:resistance 15 1")
+        show_popup(name, "Taking it easy", "Here's something to help you recover", color="aqua", sound="entity.player.levelup")
+        print(f"   [MERCY] {name} -> regeneration + resistance applied")
+        p["last_event_time"] = now
+
+IDLE_CHECK_INTERVAL = 10
+last_idle_check = time.time()
+
+def check_idle_players():
+    for name in list(players.keys()):
+        score, _ = compute_score(name)
+        maybe_trigger_event(name, score)
 
 print(f"Watching for player activity... (engine: {ENGINE_MODE})\n")
 
@@ -133,6 +165,9 @@ with open(log_path, "r", encoding="utf-8") as f:
         line = f.readline()
         if not line:
             time.sleep(1)
+            if time.time() - last_idle_check >= IDLE_CHECK_INTERVAL:
+                check_idle_players()
+                last_idle_check = time.time()
             continue
 
         join_match = join_pattern.search(line)
