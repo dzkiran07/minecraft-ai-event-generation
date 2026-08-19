@@ -3,16 +3,29 @@ import re
 import pickle
 import csv
 import os
+import json
+import urllib.request
 from mcrcon import MCRcon
 
 log_path = "../logs/latest.log"
 
 join_pattern = re.compile(r"(\w+) joined the game")
 leave_pattern = re.compile(r"(\w+) left the game")
+ask_pattern = re.compile(r"<(\w+)> !ask (.+)")
 chat_pattern = re.compile(r"<(\w+)> (.+)")
 death_pattern = re.compile(r"(\w+) (was slain by|was blown up by|drowned|fell)")
 advancement_pattern = re.compile(r"(\w+) has (?:made the advancement|reached the goal|completed the challenge) \[(.+)\]")
 players = {}
+
+OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_MODEL = "llama3.2"
+ASK_SYSTEM_PROMPT = (
+    "You are a helpful Minecraft survival guide. Only answer questions about "
+    "Minecraft gameplay, crafting, building, and survival mechanics. If asked "
+    "about anything unrelated to Minecraft, politely redirect the player back "
+    "to Minecraft topics. Keep answers short — 1-3 sentences, suitable for "
+    "in-game chat."
+)
 
 LOW_THRESHOLD = 3
 HIGH_THRESHOLD = 15
@@ -64,6 +77,28 @@ def show_popup(name, title_text, subtitle_text, color="white", sound="entity.exp
     send_command(title_cmd)
     send_command(subtitle_cmd)
     send_command(sound_cmd)
+
+def handle_ask_command(name, question):
+    payload = json.dumps({
+        "model": OLLAMA_MODEL,
+        "prompt": question,
+        "system": ASK_SYSTEM_PROMPT,
+        "stream": False,
+    }).encode("utf-8")
+    request = urllib.request.Request(OLLAMA_URL, data=payload, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as resp:
+            result = json.loads(resp.read())
+        answer = result.get("response", "").strip()
+    except Exception as e:
+        print(f"   [ASK] Ollama request failed ({e}) -- is 'ollama serve' running?")
+        return
+    if not answer:
+        print(f"   [ASK] Ollama returned an empty response for {name}")
+        return
+    text_component = json.dumps({"text": f"[Guide] {answer}", "color": "light_purple"})
+    send_command(f"tellraw {name} {text_component}")
+    print(f"   [ASK] {name} asked: {question!r} -> {answer!r}")
 
 def decide_with_rules(name, score):
     p = players[name]
@@ -172,6 +207,7 @@ with open(log_path, "r", encoding="utf-8") as f:
 
         join_match = join_pattern.search(line)
         leave_match = leave_pattern.search(line)
+        ask_match = ask_pattern.search(line)
         chat_match = chat_pattern.search(line)
         death_match = death_pattern.search(line)
         advancement_match = advancement_pattern.search(line)
@@ -181,6 +217,10 @@ with open(log_path, "r", encoding="utf-8") as f:
             if leave_name in players:
                 log_session_end(leave_name)
                 del players[leave_name]
+
+        if ask_match:
+            handle_ask_command(ask_match.group(1), ask_match.group(2))
+            continue
 
         name = None
         event_type = "action"
